@@ -1,0 +1,151 @@
+---
+title: "Activity Analysis"
+author: Jhumbl
+date: "_19/08/2018_"
+output:
+  html_document: 
+        keep_md: true
+  pdf_document: default
+---
+# Activity Analysis: Reproducible Research
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Loading and Preprocessing the data  
+
+Begin by loading all relavent packages:
+```{r Packages}
+library(lattice)
+library(lubridate)
+```
+
+Start by reading the csv file into R.
+
+```{r readFiles}
+Activity <- read.csv("activity.csv")
+str(Activity)
+```
+## 2. What is the mean total number of steps taken per day?
+Total number of steps taken per day:
+```{r totalSteps}
+StepsPerDay <- tapply(Activity$steps, Activity$date, FUN = sum)
+plot(ymd(names(StepsPerDay)), StepsPerDay, 
+     pch = 20, 
+     type = "p", 
+     col = "blue", 
+     xlab = "Date", 
+     ylab = "Steps", 
+     main = "Total number of steps taken per day")
+```
+
+Plot a histogram of the data 
+```{r Histogram}
+hist(StepsPerDay, col = "blue", breaks = 11)
+```
+
+Mean and median number of steps per day
+```{r MeanSteps}
+MeanSteps <- mean(StepsPerDay, na.rm = TRUE)
+MeanSteps
+MedianSteps <- median(StepsPerDay, na.rm = TRUE)
+MedianSteps
+```
+
+## 3. What is the average daily activity pattern?
+
+Make a time series plot (i.e. \color{red}{\verb|type = "l"|}type="l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+
+```{r activityPattern}
+MeanStepsPerInterval <- tapply(Activity$steps, Activity$interval, FUN = mean, na.rm = TRUE)
+plot(names(MeanStepsPerInterval), MeanStepsPerInterval, 
+     pch = 20, 
+     type = "l", 
+     col = "blue", 
+     xlab = "5-minute Interval", 
+     ylab = "Steps", 
+     main = "Mean number of steps taken per Interval")
+```
+
+Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r maxSteps}
+names(which(MeanStepsPerInterval == max(MeanStepsPerInterval)))
+```
+
+## 4. Imputing missing values
+Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with \color{red}{\verb|NA|}NAs).  
+  
+  True means value is missing. False means value is recorded.
+```{r MissingValues}
+NAVector <- is.na(Activity$steps)
+table(NAVector)
+```
+There are 2304 missing values in this dataset.  
+
+Replace missing values with the mean of that 5 minute time interval.
+
+``` {r replaceNA}
+ActivityNAsReplaced <- Activity
+for(i in 1:length(ActivityNAsReplaced$steps)){
+        if (is.na(ActivityNAsReplaced$steps[i])){
+                ActivityNAsReplaced$steps[i] <- MeanStepsPerInterval[which(names(MeanStepsPerInterval) == ActivityNAsReplaced$interval[i])]
+        }
+}
+
+head(ActivityNAsReplaced)
+```
+
+Plot a histogram to show the difference between original data and updated data with NA's replaced.
+
+```{r SumNew}
+StepsPerDayNew <- tapply(ActivityNAsReplaced$steps, ActivityNAsReplaced$date, FUN = sum)
+hist(StepsPerDayNew, col = "blue", breaks = 11, 
+     main = "Histogram of Steps Per Day without missing values")
+```
+
+
+Mean and median number of steps per day with Updated data
+
+```{r MeanStepsUpdated}
+MeanStepsUpdated <- mean(StepsPerDayNew)
+MeanStepsUpdated
+MedianStepsUpdated <- median(StepsPerDayNew)
+MedianStepsUpdated
+```
+
+From these results it seems the mean did not change, however there was a very small change to the median. Both mean and median values ended up being equal.
+
+## 5. Are there differences in activity patterns between weekdays and weekends?
+
+The following code adds a column to the dataframe which determines whether each day is a weekday or the weekend.
+
+```{r WeekEnd}
+ActivityWeek <- ActivityNAsReplaced 
+ActivityWeek$DayofWeek <- weekdays(ymd(ActivityWeek$date))
+
+for(i in 1:length(ActivityWeek$DayofWeek)){
+        if (ActivityWeek$DayofWeek[i] %in% c("Saturday", "Sunday")){
+                ActivityWeek$DayofWeek[i] <- "Weekend"
+        }
+        else {
+                ActivityWeek$DayofWeek[i] <- "Weekday"
+        }
+}
+```
+
+The following code finds the mean for each interval and plots it in relation to whether the date is a weekday or the weekend.
+
+```{r timeSeriesLatticePlot}
+AveSteps <- aggregate(ActivityWeek$steps, 
+                      by = list(ActivityWeek$interval, ActivityWeek$DayofWeek), 
+                      FUN = mean)
+
+names(AveSteps) <- c("interval", "day", "steps")
+
+xyplot(steps ~ interval|day, data = AveSteps, type = "l", layout = c(1,2), 
+       xlab = "5 minute Interval", 
+       ylab = "Steps", 
+       main = "Time series plot of the 5-minute interval", 
+       index.cond = list(2:1))
+```
